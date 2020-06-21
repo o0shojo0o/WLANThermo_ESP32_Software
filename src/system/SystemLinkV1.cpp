@@ -21,9 +21,9 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <driver/ledc.h>
-#include "SystemNanoVx.h"
-#include "temperature/TemperatureMax11615.h"
-#include "display/DisplayOled.h"
+#include "SystemLinkV1.h"
+#include "temperature/TemperatureMax11613.h"
+#include "display/DisplayOledLink.h"
 #include "Constants.h"
 
 // PITMASTER
@@ -32,15 +32,18 @@
 #define PITMASTERSUPPLY 13u // StepUp Pin
 
 // OLED
-#define OLED_RESET_IO 4u
+//#define OLED_RESET_IO 4u
 
 // BUZZER
 #define BUZZER_IO 2u
 
-// BLUETOOTH
-#define BLE_RESET_PIN 4u
+// SD CARD
+#define CS_SD_CARD 5u
 
-#define STANDBY_SLEEP_CYCLE_TIME 500000u // 500ms
+// BLUETOOTH
+#define BLE_UART_TX 12
+#define BLE_UART_RX 14
+#define BLE_RESET_PIN 4u
 
 enum ledcChannels
 {
@@ -52,76 +55,34 @@ enum ledcChannels
   ledcBuzzer = 4
 };
 
-RTC_DATA_ATTR boolean SystemNanoVx::didSleep = false;  // standby ram
-RTC_DATA_ATTR boolean SystemNanoVx::didCharge = false; // standby ram
-
-SystemNanoVx::SystemNanoVx() : SystemBase()
+SystemLinkV1::SystemLinkV1() : SystemBase()
 {
 }
 
-void SystemNanoVx::hwInit()
+void SystemLinkV1::hwInit()
 {
-  // only init oled reset pin when coming from cold start
-  /*
-  if (didSleep != true)
-  {
-    pinMode(OLED_RESET_IO, OUTPUT);
-    digitalWrite(OLED_RESET_IO, LOW);
-    delay(100);
-    digitalWrite(OLED_RESET_IO, HIGH);
-    delay(100);
-  }
-  */
-
-  // initialize battery in hwInit!
-  battery = new Battery();
-  battery->update();
-
   pinMode(PITMASTERSUPPLY, OUTPUT);
   digitalWrite(PITMASTERSUPPLY, 0u);
-
-  // handle sleep during battery charge
-  if (battery->requestsStandby())
-  {
-    if (didSleep != true || battery->isCharging() != didCharge)
-    {
-      Wire.begin();
-      Wire.setClock(700000);
-      DisplayOled::drawCharging();
-      didCharge = battery->isCharging();
-    }
-
-    didSleep = true;
-    esp_sleep_enable_timer_wakeup(STANDBY_SLEEP_CYCLE_TIME);
-    esp_deep_sleep_start();
-  }
-
-  didSleep = false;
 
   Wire.begin();
   Wire.setClock(700000);
 }
 
-void SystemNanoVx::init()
+void SystemLinkV1::init()
 {
-  deviceName = "nano";
-  hardwareVersion = 3u;
+  deviceName = "link";
+  hardwareVersion = 1u;
   wlan.setHostName(DEFAULT_HOSTNAME + String(serialNumber));
 
   // initialize temperatures
   this->wireLock();
-  temperatures.add(new TemperatureMax11615(0u, &Wire));
-  temperatures.add(new TemperatureMax11615(1u, &Wire));
-  temperatures.add(new TemperatureMax11615(2u, &Wire));
-  temperatures.add(new TemperatureMax11615(3u, &Wire));
-  temperatures.add(new TemperatureMax11615(4u, &Wire));
-  temperatures.add(new TemperatureMax11615(5u, &Wire));
-  temperatures.add(new TemperatureMax11615(6u, &Wire));
-  temperatures.add(new TemperatureMax11615(7u, &Wire));
+  temperatures.add(new TemperatureMax11613(0u, &Wire));
+  temperatures.add(new TemperatureMax11613(1u, &Wire));
+  temperatures.add(new TemperatureMax11613(2u, &Wire));
   this->wireRelease();
 
   // add blutetooth feature
-  bluetooth = new Bluetooth(&Serial2, BLE_RESET_PIN);
+  bluetooth = new Bluetooth(BLE_UART_RX, BLE_UART_TX, BLE_RESET_PIN);
   bluetooth->loadConfig(&temperatures);
   bluetooth->init();
 
@@ -138,7 +99,7 @@ void SystemNanoVx::init()
   //        Name,      Nr, Aktor,  Kp,    Ki,  Kd, DCmin, DCmax, JP, SPMIN, SPMAX, LINK, ...
   profile[pitmasterProfileCount++] = new PitmasterProfile{"SSR SousVide", 0, 0, 104, 0.2, 0, 0, 100, 100};
   profile[pitmasterProfileCount++] = new PitmasterProfile{"TITAN 50x50", 1, 1, 3.8, 0.01, 128, 25, 100, 70};
-  profile[pitmasterProfileCount++] = new PitmasterProfile{"Servo MG995", 2, 2, 104, 0.2, 0, 0, 100, 100, 25, 75};
+  profile[pitmasterProfileCount++] = new PitmasterProfile{"Kamado 50x50", 2, 1, 7.0, 0.019, 130, 25, 100, 70};
   profile[pitmasterProfileCount++] = new PitmasterProfile{"Custom", 3, 1, 7.0, 0.2, 0, 0, 100, 100, 0, 100};
 
   // default profiles and temperatures, will be overwritten when config exists
@@ -147,8 +108,7 @@ void SystemNanoVx::init()
 
   pitmasters.loadConfig();
 
-  //powerSaveModeSupport = true;
-  //setPowerSaveMode(true);
+  sdCard = new SdCard(CS_SD_CARD);
 
   initDone = true;
 }

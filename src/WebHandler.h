@@ -41,6 +41,7 @@ public:
   NanoWebHandler(void);
   void handleRequest(AsyncWebServerRequest *request);
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
+  boolean isRequestHandlerTrivial() { return false; };
   bool canHandle(AsyncWebServerRequest *request);
 
   // Request handler
@@ -59,6 +60,7 @@ public:
   void handleCalibrate(AsyncWebServerRequest *request);
   void handleAdmin(AsyncWebServerRequest *request);
   void handleUpdate(AsyncWebServerRequest *request);
+  void handleBluetooth(AsyncWebServerRequest *request);
 
   // Body handler
   bool setServerAPI(AsyncWebServerRequest *request, uint8_t *datas);
@@ -72,6 +74,7 @@ public:
   bool setIoT(AsyncWebServerRequest *request, uint8_t *datas);
   bool setPush(AsyncWebServerRequest *request, uint8_t *datas);
   bool setDCTest(AsyncWebServerRequest *request, uint8_t *datas);
+  bool setBluetooth(AsyncWebServerRequest *request, uint8_t *datas);
 
 private:
   int checkStringLength(String tex);

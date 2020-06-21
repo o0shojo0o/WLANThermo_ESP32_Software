@@ -22,15 +22,24 @@
 #include "Arduino.h"
 #include "TemperatureBase.h"
 
+typedef void (*TemperatureCallback_t)(uint8_t index, class TemperatureBase *, boolean, void *);
+
+typedef struct TemperatureCallbackData
+{
+  TemperatureCallback_t cb;
+  void *userData;
+} TemperatureCallbackDataType;
+
 class TemperatureGrp
 {
 public:
   TemperatureGrp();
-  void virtual update();
+  void update();
   void add(TemperatureBase *temperature);
+  void add(uint8_t type, String address, uint8_t localIndex);
+  void remove(uint8_t type, String address, uint8_t localIndex);
   void remove(uint8_t index);
-  void addBle();
-  void removeBle();
+  boolean exists(uint8_t type, String address, uint8_t localIndex);
   TemperatureBase *operator[](int index);
   uint8_t count();
   boolean setUnit(TemperatureUnit unit);
@@ -42,9 +51,10 @@ public:
   void acknowledgeAlarm();
   void saveConfig();
   void loadConfig();
+  void registerCallback(TemperatureCallback_t callback, void *userData = NULL);
 
 private:
-  TemperatureBase *addRemote(uint8_t type, const char *address, uint8_t localIndex);
   std::vector<TemperatureBase *> temperatures;
+  std::vector<TemperatureCallbackDataType> registeredCb;
   TemperatureUnit currentUnit;
 };

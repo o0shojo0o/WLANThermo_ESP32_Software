@@ -25,6 +25,9 @@
 
 #define INACTIVEVALUE 999
 
+#define TEMPERATURE_ADDRESS_INTERNAL "FF:FF:FF:00:00:00"
+#define TEMPERATURE_ADDRESS_TYPE_K "FF:FF:FF:00:01:00"
+
 enum AlarmSetting
 {
   AlarmMin = 0u,
@@ -48,7 +51,6 @@ enum TemperatureUnit
   Celsius = 'C',
 };
 
-typedef void (*TemperatureCallback_t)(class TemperatureBase *, boolean, void *);
 typedef float (*TemperatureCalculation_t)(uint16_t, SensorType);
 
 class TemperatureBase
@@ -57,6 +59,7 @@ public:
   TemperatureBase();
   ~TemperatureBase();
   void loadDefaultValues();
+  void loadConfig();
   float getValue();
   float GetMedianValue();
   float getMinValue();
@@ -86,9 +89,8 @@ public:
   void acknowledgeAlarm() { acknowledgedAlarm = true; };
   boolean isAlarmAcknowledged() { return acknowledgedAlarm; };
   void updateNotificationCounter();
-  void registerCallback(TemperatureCallback_t callback, void *userData);
-  void unregisterCallback();
-  void handleCallbacks();
+  boolean checkNewValue();
+  boolean checkNewSettings();
   AlarmStatus getAlarmStatus();
   boolean isActive();
   void virtual update();
@@ -113,9 +115,7 @@ private:
   TemperatureUnit currentUnit;
   uint8_t notificationCounter;
   static TemperatureCalculation_t typeFunctions[NUM_OF_TYPES];
-  TemperatureCallback_t registeredCb;
   boolean settingsChanged;
-  void *registeredCbUserData;
   AlarmStatus cbAlarmStatus;
   boolean acknowledgedAlarm;
   float cbCurrentValue;

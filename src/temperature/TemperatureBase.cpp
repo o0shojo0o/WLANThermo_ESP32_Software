@@ -19,6 +19,7 @@
 ****************************************************/
 
 #include "TemperatureBase.h"
+#include "Settings.h"
 
 #define LOWEST_VALUE -31
 #define HIGHEST_VALUE 999
@@ -40,7 +41,6 @@ uint8_t TemperatureBase::globalIndexTracker = 0u;
 
 TemperatureBase::TemperatureBase()
 {
-  this->registeredCb = NULL;
   this->globalIndex = this->globalIndexTracker++;
   this->medianValue = new MedianFilter<float>(MEDIAN_SIZE);
   this->loadDefaultValues();
@@ -65,41 +65,69 @@ void TemperatureBase::loadDefaultValues()
   this->minValue = DEFAULT_MIN_VALUE;
   this->maxValue = DEFAULT_MAX_VALUE;
   this->name = DEFAULT_CHANNEL_NAME + String(this->globalIndex + 1u);
-  this->address = "";
   this->type = SensorType::Maverick;
   this->alarmSetting = AlarmOff;
   this->notificationCounter = 1u;
+
   if (this->globalIndex < MAX_COLORS)
+  {
     this->color = colors[this->globalIndex];
+  }
+  else
+  {
+    this->color = colors[random(0, MAX_COLORS - 1u)];
+  }
 
   settingsChanged = true;
 }
 
-void TemperatureBase::registerCallback(TemperatureCallback_t callback, void *userData)
+void TemperatureBase::loadConfig()
 {
-  this->registeredCb = callback;
-  this->registeredCbUserData = userData;
-}
+  DynamicJsonBuffer jsonBuffer(Settings::jsonBufferSize);
+  JsonObject &json = Settings::read(kChannels, &jsonBuffer);
 
-void TemperatureBase::unregisterCallback()
-{
-  this->registeredCb = NULL;
-}
-
-void TemperatureBase::handleCallbacks()
-{
-  AlarmStatus newAlarmStatus = getAlarmStatus();
-
-  if ((this->registeredCb != NULL))
+  if (json.success())
   {
-    if ((true == settingsChanged) || (cbAlarmStatus != newAlarmStatus) || (cbCurrentValue != currentValue))
+    for (uint8_t i = 0u; i < json["tname"].size(); i++)
     {
-      this->registeredCb(this, settingsChanged, this->registeredCbUserData);
-      cbAlarmStatus = newAlarmStatus;
-      settingsChanged = false;
-      cbCurrentValue = getValue();
+      if (json.containsKey("taddress") && json.containsKey("tlindex"))
+      {
+        if ((this->address == json["taddress"][i].asString()) && (this->localIndex == json["tlindex"][i].as<uint8_t>()))
+        {
+          this->name = json["tname"][i].asString();
+          this->type = (SensorType)json["ttyp"][i].as<uint8_t>();
+          this->minValue = json["tmin"][i];
+          this->maxValue = json["tmax"][i];
+          this->alarmSetting = (AlarmSetting)json["talarm"][i].as<uint8_t>();
+          this->color = json["tcolor"][i].asString();
+        }
+      }
     }
   }
+}
+
+boolean TemperatureBase::checkNewValue()
+{
+  boolean newValue = false;
+
+  AlarmStatus newAlarmStatus = getAlarmStatus();
+
+  if ((cbAlarmStatus != newAlarmStatus) || (cbCurrentValue != currentValue))
+  {
+    cbAlarmStatus = newAlarmStatus;
+    cbCurrentValue = getValue();
+    newValue = true;
+  }
+
+  return newValue;
+}
+
+boolean TemperatureBase::checkNewSettings()
+{
+  boolean newSettings = settingsChanged;
+  settingsChanged = false;
+
+  return newSettings;
 }
 
 float TemperatureBase::getValue()
